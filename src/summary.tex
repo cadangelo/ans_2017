@@ -24,7 +24,7 @@ Computational Nuclear Engineering Research Group, University of Wisconsin-Madiso
 \section{Introduction}
 As scientific computing abilities continue to advance, so too have the efforts to model
 and simulate highly complex geometries in radiation environments.  Modeling has
-advanced from primitive csg to voxelized models, and now to high fidelity polygon mesh 
+advanced from primitive Constructive Solid Geometry (CSG) to voxelized models, and now to high fidelity polygon mesh 
 models.  While polygon mesh surface models are very accurate, most Monte Carlo codes
 do not allow for their direct use. Often they are converted to voxel or tetrahedral 
 mesh models and then used with the physics codes \cite{tetmesh}.
@@ -39,27 +39,27 @@ data for each surface, but do not have any information about surface topology.
 These types of file formats necessitate a tool that can build a hierarchy of 
 surfaces and reconstruct the topological information.  The \texttt{Generate\_Hierarchy} 
 tool was developed for this purpose.  The following summary will explain the algorithm
-behind the tool, show a test case, and finally demonstrate a real-world application
-of the tool with an MCNP calculation that directly uses a polygon mesh human phantom.
+behind the tool, describe a test case, and finally demonstrate a real-world application
+of the tool with an MCNP5 calculation that directly uses a polygon mesh human phantom.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Methods}
 
 %Workflow
-The full workflow for radiation transport calculation directly on a surface mesh model
-relies upon several tools, embedded in the Mesh Oriented datABase (MOAB) software library\cite{???}, that
-rely on topological information about the relationships between adjacent volumes separated by that mesh.
+The full workflow for a radiation transport calculation directly on a surface mesh model
+employs several tools that are embedded in the Mesh Oriented datABase (MOAB) software library\cite{moab}.
 MOAB is used to store the unstructured mesh data 
 and has many useful built in functions for organizing the mesh data into sets, 
-tagging the sets with metadata, and creating relationships between sets.
-When the surface mesh is generated directly from CAD-based geometry, the necessary topological information
-is automatically incorporated into the metadata of that mesh.  When that mesh is generated in other
-ways, however, that topological information is frequently absent.  One common file format for
-representing polygon surface mesh is the OBJ format\cite{obj}.  Capability was
-added to MOAB's file readers to support the OBJ file format.  While this format allows for volumes to be
+tagging the sets with metadata, and creating relationships between sets.  The radiation transport step relies 
+on topological information about the relationships between adjacent volumes separated by the surface mesh.
+When the mesh is generated directly from CAD-based geometry, the necessary topological information
+is automatically incorporated into the metadata.  However, when the surface mesh is generated in other
+ways, that topological information is frequently absent.  The OBJ file format\cite{obj} is a common format for
+representing polygon surface mesh so capability was
+added to MOAB's file readers to support it.  While this format allows for volumes to be
 nested topologically, it does not include any information to describe the topology.  A separate capability
 was added to MOAB's tools to reconstruct the topology once loaded into a MOAB instance.
-If the geometry is then going to be used 
-for a Monte Carlo transport calculation, the University of Wisconsin Unified Workflow(\texttt{UW2}) can be used to attach 
+If the geometry is going to be used 
+for a Monte Carlo transport calculation, the University of Wisconsin Unified Workflow (\texttt{UW2}) can be used to attach 
 the material information to the geometry file.  At this point, the geometry file
 can be used with any of the DAGMC physics codes: MCNP, Fluka, and Geant4.
 
@@ -80,8 +80,8 @@ closed surface.  OBJ files are organized such that all mesh data that follow
 an \texttt{object} or \texttt{group} line belong to that \texttt{object} or
 \texttt{group}.  When an \texttt{object} or \texttt{group} line is found, a
 new MOAB meshset is created and all the entities that follow become members of
-that meshset.  For \texttt{groups}, the meshsets are also assigned a name and
-ID tag.  Since \texttt{objects} are defined to represent closed volumes, the
+that meshset.  The meshsets for \texttt{groups} are assigned a name and
+ID tag.  Because \texttt{objects} are defined to represent closed volumes, the
 meshset that contains the \texttt{faces} represents the surface that bounds
 that volume, and an additional meshset is created to represent the volume
 itself.  The volume and surface meshsets are connected through a parent-child
@@ -93,8 +93,8 @@ meshsets, they are instead added to a global vertex meshset.
 \subsection{Topology Reconstruction}
 For successful radiation transport, all space needs to be explicitly defined
 as belonging to a volume, and only one volume.  Geometry files that only
-contain surface mesh data and have inadequate information to define the
-relationships of those surfaces with all their neighboring volumes.  In
+contain surface mesh data have inadequate information to define the
+relationships of those surfaces with their neighboring volumes.  In
 particular, they generally can be topologically related to the volumes that
 they enclose, but not to the volumes that may enclose them.  Therefore, when
 one volume encloses another, the space within the enclosed volume is defined
@@ -104,8 +104,8 @@ relationships among volumes and then add metadata to encode those topological
 relationships, thus allowing the space in the enclosed volume to be excluded
 from the outer volume.  The \texttt{generate\_hierarchy} tool has two main
 public-facing functions: \texttt{build\_hierarchy} to discover the topological
-relationship and \texttt{construct\_topology} to record that relationship as
-metadata according to the conventions for using that mesh geometry for Monte
+relationships and \texttt{construct\_topology} to record these relationships as
+metadata according to the conventions for using mesh geometry for Monte
 Carlo radiation transport.
 
 The example depicted in figure~\ref{fig:spheres}, a 2D slice of nested spheres, will 
@@ -118,7 +118,7 @@ by surface B, but outside of surface D.
 \begin{figure}[ht]
  \centering
  \includegraphics[width=0.27\textwidth]{../figs/nested_spheres.png}
- \caption{2D slice of nested spheres.}
+ \caption{Two-dimensional slice of nested spheres.}
  \label{fig:spheres}
 \end{figure}
 
@@ -159,9 +159,11 @@ outside of volume C.  Volume D becomes another child of A and sibling of C.
 Last, object B is inserted. It is found to be inside of A but encloses D,
 becoming a child of volume A and a parent of volume D. Because a volume can
 only have one parent, the parent-child linkage between volume A and volume D
-is broken.  Because volume D was previously considered a sibling of volume C,
-volume C must also be tested for the possibility that it is also enclosed by
-volume B. The constructed tree is shown in figure \ref{fig:tree} below.
+is broken.  Recall that volume D was previously considered a sibling of volume C,
+so volume C must be tested for the possibility that it is also enclosed by
+volume B. The test reveals that C is not in B, so the search is complete and all
+volumes have been properly inserted into the tree.  
+The constructed tree is shown in figure \ref{fig:tree} below.
 
 \begin{figure}[ht] % replace 't' with 'b' to force it to be on the bottom
   \centering
@@ -171,10 +173,10 @@ volume B. The constructed tree is shown in figure \ref{fig:tree} below.
 \end{figure}
 
 After the hierarchical topology has been established, DAGMC conventions are
-appled to the volumes by \texttt{construct\_topology}.  This is accomplished
+applied to the volumes by \texttt{construct\_topology}.  This is accomplished
 by setting the surface sense with respect to the enclosing volumes and
-creating parent-child links between the surface meshsets and its enclosing
-volume.  Each surface has two volumes associated with it, one inside and one
+creating parent-child links between the surface meshsets and their enclosing
+volumes.  Each surface has two volumes associated with it, one inside and one
 outside.  As mentioned earlier, the surface sense for the 'inside' volume is
 already set.  This function completes the surface sense data by setting the
 'outside' volume to the enclosing volume.  Looking at figure \ref{fig:tree},
@@ -185,7 +187,7 @@ outermost surface, the 'inside' volume sense is set to volume A but the
 sense are interpretted during the radiation transport step to be connected to
 an implicit complement.
 
-In order to test that the correct hierarchy and topology were being generated
+In order to test that the correct hierarchy and topology were generated
 by these tools, a test problem of six nested cubes very similar to the spheres
 depicted in figure \ref{fig:spheres} was created, but with four hierarchical
 levels.  Each cube was represented by a single surface and volume meshset and
@@ -234,7 +236,10 @@ number of different Monte Carlo radiation transport codes.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Acknowledgments}
 
-The authors would like to acknowledge Dr. Chan Hyeong Kim from Hanyang University for access to the polygon surface mesh phantom developed by his research group.  This work was sponsored, in part by, NASA's Space Radiation Analysis Group (via Wyle Corporation grant T73043) and the USDOE's Office of Fusion Energy Sciences (DE-FG02-99ER54513DE-FG02-99ER54513).
+The authors would like to acknowledge Dr. Chan Hyeong Kim from the Hanyang University Radiation Engineering Lab (HUREL)
+for access to the mesh-type ICRP reference computational phantom currently under development by his research group.
+This work was sponsored, in part by, NASA's Space Radiation Analysis Group (via Wyle Corporation grant T73043)
+and the USDOE's Office of Fusion Energy Sciences (DE-FG02-99ER54513DE-FG02-99ER54513).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \bibliographystyle{ans}
