@@ -24,10 +24,11 @@ Computational Nuclear Engineering Research Group, University of Wisconsin-Madiso
 \section{Introduction}
 As scientific computing abilities continue to advance, so too have the efforts to model
 and simulate highly complex geometries in radiation environments.  Modeling has
-advanced from primitive Constructive Solid Geometry (CSG) to voxelized models, and now to high fidelity polygon mesh 
+advanced from primitive constructive solid geometry (CSG) to voxelized models, and now to high fidelity polygon mesh 
 models.  While polygon mesh surface models are very accurate, most Monte Carlo codes
 do not allow for their direct use. Often they are converted to voxel or tetrahedral 
 mesh models and then used with the physics codes \cite{tetmesh}.
+
 The Direct Accelerated Geometry Monte Carlo (DAGMC) software package
 has the ability to efficiently run transport calculations directly on tessellated
 surface models \cite{dagmc}.  Typically the surface meshes used for DAGMC 
@@ -37,7 +38,7 @@ means and may not contain all of the necessary information for particle transpor
 For example, mesh geometries in the OBJ file format contain vertex and connectivity
 data for each surface, but do not have any information about surface topology.  
 These types of file formats necessitate a tool that can build a hierarchy of 
-surfaces and reconstruct the topological information.  The \texttt{Generate\_Hierarchy} 
+surfaces and reconstruct the topological information.  The \texttt{generate\_hierarchy} 
 tool was developed for this purpose.  The following summary will explain the algorithm
 behind the tool, describe a test case, and finally demonstrate a real-world application
 of the tool with an MCNP5 calculation that directly uses a polygon mesh human phantom.
@@ -66,8 +67,9 @@ can be used with any of the DAGMC physics codes: MCNP, Fluka, and Geant4.
 % ReadOBJ
 \subsection{OBJ File Reader}
 The basic components of a mesh geometry file are vertex coordinates and connectivity data.
-The specific contents of a Wavefront OBJ file can vary \cite{obj} and the OBJ file reader
-was written to support a subset of the full structure. 
+The specific contents of a Wavefront OBJ file \footnote{There was a challenge in identifying an official OBJ file specification.  
+With this in mind, the OBJ file reader explicitly defines which conventions it is assuming in order to eliminate some ambiguity.}
+can vary and the OBJ file reader was written to support a subset of the full structure. 
 
 The supported line types include \texttt{object}, \texttt{group},
 \texttt{face}, and \texttt{vertex}.  These four types are common to many OBJ
@@ -87,7 +89,7 @@ that volume, and an additional meshset is created to represent the volume
 itself.  The volume and surface meshsets are connected through a parent-child
 relationship.  In addition to a name and ID, these meshsets are also given a
 category and dimension tag.  Instead of adding the \texttt{vertices} to individual
-meshsets, they are instead added to a global vertex meshset.
+meshsets, they are added to a global vertex meshset.
 
 % Generate Hierarchy 
 \subsection{Topology Reconstruction}
@@ -117,7 +119,7 @@ by surface B, but outside of surface D.
 
 \begin{figure}[ht]
  \centering
- \includegraphics[width=0.27\textwidth]{../figs/nested_spheres.png}
+ \includegraphics[width=0.22\textwidth]{../figs/nested_spheres.png}
  \caption{Two-dimensional slice of nested spheres.}
  \label{fig:spheres}
 \end{figure}
@@ -167,7 +169,7 @@ The constructed tree is shown in figure \ref{fig:tree} below.
 
 \begin{figure}[ht] % replace 't' with 'b' to force it to be on the bottom
   \centering
-  \includegraphics[width=0.3\textwidth]{../figs/tree.png}
+  \includegraphics[width=0.25\textwidth]{../figs/tree.png}
   \caption{Hierarchical tree built from nested spheres geometry.  Arrows represent parent-child links.}
   \label{fig:tree}
 \end{figure}
@@ -201,27 +203,57 @@ hierarchical relationships were established each time.
 
 In order to demonstrate a real-world use case, these tools were used to
 prepare a polygon surface mesh human phantom for an MCNP5 calculation.  The
-human phantom was developed at Hanyang University and provided in the OBJ file
-format. \cite{phantom} The OBJ file contained all of the vertex coordinates
+human phantom was developed at the Hanyang University Radiation Engineering Lab (HUREL) and provided in the OBJ file
+format.  The OBJ file contained all of the vertex coordinates
 and connectivity data grouped by object.  The objects in this case are parts
 of the body including organs, muscle, bone, etc.  The OBJ file reader was used
 to read in the file and \texttt{generate\_hierarchy} to instate the correct
-hierarchical relationships and topology.  The \texttt{UW2} process was used to
-assign materials, with separately provided compositions, to the resulting
-volumes.  For proof of concept, a DAG-MCNP calculation using a 30 KeV photon
-source in the chest was performed.
+hierarchical relationships and topology.  Part of the tree built by \texttt{generate\_hierarchy}
+is shown in figure~\ref{fig:trimtree} below.  The full tree of 168 volumes is too large to
+show here, so these particular branches were chosen in order to highlight the key features of the 
+hierarchy.  The three volumes in contact with the outside
+world, the skin and two corneas, are attached to the root node at the top of the tree.  
+There are several layers of skin below until the residual is reached. The residual
+functions as an explicit compliment that is in contact with 71 body volumes.
+These 71 child volumes have varying degrees of internal structure, with some that have no children,
+others that have 1-7 children, and others that contain deeply nested child volumes.  The deepest branch, 14 levels,
+contains volumes in the respiratory system and is shown on the far right.
 
-Figure~\ref{fig:mcnp} Figure of photon flux in phantom generated by DAG-MCNP
+\begin{figure}[ht]
+ \centering
+ \includegraphics[width=0.5\textwidth]{../figs/trimtree.png}
+ \caption{Subset of the hierarchical tree of human phantom volumes.  
+          There are 63 child volumes of the residual not shown. 
+          The branch of respiratory volumes on the far right also goes
+          four levels deeper than what is shown here.}
+ \label{fig:trimtree}
+\end{figure}
+
+The compositions for each phantom volume were provided by HUREL and the \texttt{UW2} 
+process was used to attach the materials to the resulting
+geometry file.
+
+%Figure~\ref{fig:phan_mats} shows a slice of the phantom head and torso with the volumes colored
+%by material.  
+
+%\begin{figure}[ht]
+% \centering
+% \includegraphics[width=0.2\textwidth]{../figs/phantom_mat1.png}
+% \caption{Slice of the phantom head and torso.  Each volume is colored by material.}
+% \label{fig:trimtree}
+%\end{figure}
+
+For proof of concept, a DAG-MCNP calculation using a 30 KeV photon
+source in the chest was performed.  The resulting mesh tally of photon flux is 
+shown in figure \ref{fig:mcnp}. 
+
 \begin{figure}[ht] % replace 't' with 'b' to force it to be on the bottom
   \centering
-  \includegraphics[width=0.5\textwidth]{../figs/30KeV_Psource.png}
+  \includegraphics[width=0.4\textwidth]{../figs/30KeV_Psource.png}
   \caption{Photon flux from DAG-MCNP calculation with 30 keV photon source in chest. }
   \label{fig:mcnp}
 \end{figure}
 
-%Figure~\ref{fig:phan_mats} Figure of phantom with materials labeled
-%Figure~\ref{fig:fluka} Figure of photon flux in phantom generated by FluDAG 
-%Figure~\ref{fig:geant} Figure of photon flux in phantom generated by DAG-Geant
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Conclusions and Future Work}
