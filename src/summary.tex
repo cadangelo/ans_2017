@@ -49,16 +49,16 @@ of the tool with an MCNP5 calculation that directly uses a polygon mesh human ph
 The full workflow for a radiation transport calculation directly on a surface mesh model
 employs several tools that are embedded in the Mesh Oriented datABase (MOAB) software library\cite{moab}.
 MOAB is used to store the unstructured mesh data 
-and has many useful built in functions for organizing the mesh data into sets, 
+and has many useful built-in functions for organizing the mesh data into sets, 
 tagging the sets with metadata, and creating relationships between sets.  The radiation transport step relies 
-on topological information about the relationships between adjacent volumes separated by the surface mesh.
+on the topological information concerning the relationships between volumes that are separated by surface mesh.
 When the mesh is generated directly from CAD-based geometry, the necessary topological information
 is automatically incorporated into the metadata.  However, when the surface mesh is generated in other
 ways, that topological information is frequently absent.  The OBJ file format\cite{obj} is a common format for
 representing polygon surface mesh so capability was
 added to MOAB's file readers to support it.  While this format allows for volumes to be
-nested topologically, it does not include any information to describe the topology.  A separate capability
-was added to MOAB's tools to reconstruct the topology once loaded into a MOAB instance.
+nested topologically, it does not include any information to describe the topology.  A separate capability, 
+\texttt{generate\_hierarchy}, was added to MOAB's tools to reconstruct the topology once loaded into a MOAB instance.
 If the geometry is going to be used 
 for a Monte Carlo transport calculation, the University of Wisconsin Unified Workflow (\texttt{UW2}) can be used to attach 
 the material information to the geometry file.  At this point, the geometry file
@@ -114,8 +114,8 @@ The example depicted in Figure~\ref{fig:spheres}, a 2D slice of nested spheres, 
 be used to explain the algorithm for building surface hierarchy. Consider surface B.
 It is completely enclosed by surface A, encloses surface D, and is beside surface C. 
 These hierarchical relationships are necessary so that volumetric entities can be
-determined.  For example, it can now be inferred that volume B is the space enclosed 
-by surface B, but outside of surface D.
+determined.  For example, knowing that surface D is completely encapsulated by surface B
+allows us to infer that volume B is the space inside surface B, but outside of surface D.
 
 \begin{figure}[ht]
  \centering
@@ -129,16 +129,22 @@ together be referred to as objects.
 There are a few fundamental assumptions made by the tool about the geometry:
 \begin{enumerate}
 \item each surface meshset represents a single closed surface,
-\item there are no overlapping/intersecting surfaces, 
+\item there are no overlapping/intersecting surfaces or coincident faces, 
 \item the only topological relationships that already exist are the parent-child links between a volume meshset and its surface meshset, 
 \item that topological relationship declares the volume to be 'inside' its corresponding surface mesh.
 \end{enumerate}
+The first requirement is specific to certain types of geometries, but it is critical to successfully recovering 
+topological information with this tool.  The requirement that surfaces do not intersect or overlap in any way is
+not only important for this tool, but for most radiation transport applications.  This tool also does not allow for
+shared or coincident faces.  The final two requirements are based upon the state of the geometry file after
+the the OBJ file reader has processed it. 
 
-\texttt{Build\_hierarchy} tests every object in the geometry and decides where
+The first step of the \texttt{generate\_hierarchy} process, \texttt{build\_hierarchy},
+tests every object in the geometry and decides where
 it belongs in a hierarchical tree.  As each new volume is added to the tree, a
 breadth-first traversal is performed.  At each node in that traversal, a test
 is performed to determine if the new volume encloses that node, is enclosed by
-that node, or neither.  The DAGMC function \texttt{point\_in\_volume} is used
+that node, or neither.  This test relies upon the DAGMC function \texttt{point\_in\_volume}
 to first test whether an arbitrary vertex on the surface of one volume is
 inside the other volume (and vice versa).
 
@@ -157,8 +163,8 @@ first to be tested. The tree is initially empty so volume meshset A is
 automatically placed at the top.  Assume object C is tested next.  The point
 on its surface is found to be inside of volume A, so it becomes a child of A.
 Object D is next and found to also be inside volume A.  Volume A already has 
-a child, C, so the relationship between B and C is tested.  The point on B is not 
-inside volume C, and the point on C is not inside volume B.
+a child, C, so the relationship between D and C is tested.  The point on D is not 
+inside volume C, and the point on C is not inside volume D.
 Volume D becomes another child of A and sibling of C.
 Last, object B is tested and found to be inside of A.  Volume A has two children, 
 so the relationship of B with these children, D and C, is tested.  Volume B is
@@ -176,8 +182,8 @@ links between volumes have been made.  The constructed tree is shown in Figure \
 \end{figure}
 
 After the hierarchical topology has been established, DAGMC conventions are
-applied by \texttt{construct\_topology}.  This function sets the sense of the surface 
-with respect to the volume that encloses it.  Each surface has two volumes associated with it, one inside and one
+applied by \texttt{construct\_topology}.   
+Each surface has two volumes associated with it, one inside and one
 outside.  As mentioned earlier, it is assumed that the surface sense for the 'inside' volume is
 already set.  This function completes the surface sense data by setting the
 'outside' volume to the enclosing volume.  Looking at Figure \ref{fig:tree},
@@ -199,10 +205,10 @@ hierarchical relationships were established each time.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Demonstration: Surface Mesh Human Phantom}
 
-In order to demonstrate a real-world use case, these tools were used to
+In order to demonstrate a real-world use case, the tools described above were used to
 prepare a polygon surface mesh human phantom for an MCNP5 calculation.  The
-human phantom was developed at the Hanyang University Radiation Engineering Lab (HUREL) and provided in the OBJ file
-format.  The OBJ file contained all of the vertex coordinates
+human phantom was developed at the Hanyang University Radiation Engineering Lab (HUREL)
+and provided in the OBJ file format.  The OBJ file contained all of the vertex coordinates
 and connectivity data grouped by object.  The objects in this case are parts
 of the body including organs, muscle, bone, etc.  The OBJ file reader was used
 to read in the file and \texttt{generate\_hierarchy} to instate the correct
@@ -226,6 +232,12 @@ contains volumes in the respiratory system and is shown on the far right.
           six levels deeper than what is shown here.}
  \label{fig:trimtree}
 \end{figure}
+
+The \texttt{generate\_hierarchy} tools were run on a quad-core Intel Core i7-3770 processor
+with 16 GB of RAM, running a 64-bit version of Ubuntu.  The full process of loading the 168-volume phantom
+geometry, building the hierarchy, constructing the topology, and writing out a new file took
+20.11 s real time.  The time was largely dominated by writing out the new geometry file, with
+only 0.082 s devoted to the \texttt{build\_hierarchy} and \texttt{construct\_topology} functions. 
 
 %Figure~\ref{fig:phan_mats} shows a slice of the phantom head and torso with the volumes colored
 %by material.  
@@ -252,6 +264,16 @@ a 30 keV photon source in the chest is shown in Figure \ref{fig:mcnp}.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Conclusions and Future Work}
+
+Though the \texttt{generate\_hierarchy} process imposes a few strict assumptions
+about the geometries it can process, it has proven to be a crucial tool
+in enabling the direct use of surace mesh geometries that lack topology for radiation transport.
+In the future, it is possible to add a capability that will automatically check that these assumptions
+are upheld with the first two assumptions requiring more effort. 
+The closed surface condition could be checked by making sure that every triangular face
+has exactlythree neighbors and potential overlaps could be detected by bounding-box intersections.
+The last two requirements that involve assumptions about surface sense and parent-child relationships
+could be tested for relatively easily. 
 
 The \texttt{UW2} was developed with the goal of simulating the same Monte
 Carlo problem with several physics codes so in the near future, we will run
